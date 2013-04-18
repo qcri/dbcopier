@@ -4,22 +4,22 @@ require './db_copier.rb'
 src_db_hash = {
   adapter: 'mysql2',
   host: 'localhost',
-  database: 'islamopedia',
-  user: 'islamopedia',
-  password: 'I$l@m0ped1a' 
+  database: '',
+  user: '',
+  password: '' 
 }
 
 dest_db_hash1 = {
   adapter: 'mysql2',
   host: 'localhost',
-  database: 'islamopedia_copy',
-  user: 'root',
+  database: '',
+  user: '',
   password: ''   
 }
 
 dest_db_hash2 = {
   adapter: 'sqlite',
-  database: 'islamopedia_copy.db'
+  database: 'dest.db'
 }
 
 DbCopier.new(src_db_hash, dest_db_hash2).copy(
