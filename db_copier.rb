@@ -14,9 +14,10 @@ class DbCopier
   end
 
   def verify_db_url(db_hash)
+    db_hash[:default_schema] = db_hash[:schema] || 'public' if db_hash[:adapter] == 'postgres'
     db = Sequel.connect(db_hash)
     db.tables
-    db
+    return db
   rescue Object => e
     raise "Failed to connect to database at #{db_hash}:\n  #{e.class} -> #{e}"
   end
@@ -34,7 +35,9 @@ class DbCopier
     grand_total = 0
 
     tables = @src_db.tables unless tables
-    
+
+puts tables.inspect
+
     copy_schema(tables) unless opt[:skip_schema]
     grand_total = copy_data(tables, opt) unless opt[:skip_data]
     copy_indices(tables)
@@ -123,10 +126,26 @@ END_MIG
 
   def fetch_rows(db, table, offset)
     table_name = table.identifier
-    format_data(db[table].limit(@fetch_limit, offset).all,
+    ds = db[table].order(*order_by(db, table)).limit(@fetch_limit, offset)
+    format_data(ds.all,
       :string_columns => incorrect_blobs(db, table_name),
       :schema => db.schema(table_name),
       :table  => table_name
     )
   end
+
+  def primary_key(db, table)
+    db.schema(table).select { |c| c[1][:primary_key] }.map { |c| c[0] }
+  end
+
+  def order_by(db, table)
+    pkey = primary_key(db, table)
+    if pkey
+      pkey.kind_of?(Array) ? pkey : [pkey.to_sym]
+    else
+      table = table.to_sym.identifier unless table.kind_of?(Sequel::SQL::Identifier)
+      db[table].columns
+    end
+  end
+
 end
