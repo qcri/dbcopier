@@ -36,9 +36,9 @@ class DbCopier
 
     tables = @src_db.tables unless tables
 
-puts tables.inspect
+    puts "Processing #{tables.length} tables(s): #{tables.join(', ')}"
 
-    copy_schema(tables) unless opt[:skip_schema]
+    copy_schema(tables) unless opt[:skip_schema] || opt[:continue]
     grand_total = copy_data(tables, opt) unless opt[:skip_data]
     copy_indices(tables)
     reset_sequences(tables)
@@ -68,8 +68,9 @@ puts tables.inspect
       total = @src_db[table.identifier].count
       grand_total += total
       pb = ProgressBar.new(total)
-      offset = 0
-      @dest_db[table.identifier].truncate if opt[:truncate_tables]
+      offset = opt[:continue] ? @dest_db[table.identifier].count : 0
+      pb.increment! offset if offset > 0
+      @dest_db[table.identifier].truncate if opt[:truncate_tables] && offset == 0
       while 1
         rows = fetch_rows(@src_db, table, offset)
         break unless rows[:data]
@@ -146,6 +147,11 @@ END_MIG
       table = table.to_sym.identifier unless table.kind_of?(Sequel::SQL::Identifier)
       db[table].columns
     end
+  end
+
+  def next_offset(db, table)
+    db[table.identifier].count
+    
   end
 
 end
