@@ -36,12 +36,11 @@ class DbCopier
 
     tables = @src_db.tables unless tables
 
-    puts "Processing #{tables.length} tables(s): #{tables.join(', ')}"
-
+    puts "Processing #{tables.length} tables(s): :#{tables.join(', :')}"
     copy_schema(tables) unless opt[:skip_schema] || opt[:continue]
     grand_total = copy_data(tables, opt) unless opt[:skip_data]
-    copy_indices(tables)
-    reset_sequences(tables)
+    copy_indices(tables) unless opt[:skip_indices]
+    #reset_sequences(tables)
 
     tdiff = Time.now - t1
     tdiff_min = (tdiff/60).floor
@@ -65,16 +64,16 @@ class DbCopier
     puts "Copying #{tables.length} table(s) data:"
     tables.each do |table|
       puts "Table #{table}:"
-      total = @src_db[table.identifier].count
+      total = @src_db[table].count
       grand_total += total
       pb = ProgressBar.new(total)
-      offset = opt[:continue] ? @dest_db[table.identifier].count : 0
+      offset = opt[:continue] ? @dest_db[table].count : 0
       pb.increment! offset if offset > 0
-      @dest_db[table.identifier].truncate if opt[:truncate_tables] && offset == 0
+      @dest_db[table].truncate if opt[:truncate_tables] && offset == 0
       while 1
         rows = fetch_rows(@src_db, table, offset)
         break unless rows[:data]
-        @dest_db[table.identifier].import(rows[:header], rows[:data]) 
+        @dest_db[table].import(rows[:header], rows[:data]) 
         offset += @fetch_limit
         pb.increment!(rows[:data].length)
       end
@@ -126,7 +125,7 @@ END_MIG
   end
 
   def fetch_rows(db, table, offset)
-    table_name = table.identifier
+    table_name = table
     ds = db[table].order(*order_by(db, table)).limit(@fetch_limit, offset)
     format_data(ds.all,
       :string_columns => incorrect_blobs(db, table_name),
@@ -144,13 +143,13 @@ END_MIG
     if pkey
       pkey.kind_of?(Array) ? pkey : [pkey.to_sym]
     else
-      table = table.to_sym.identifier unless table.kind_of?(Sequel::SQL::Identifier)
+      table = table.to_sym unless table.kind_of?(Sequel::SQL::Identifier)
       db[table].columns
     end
   end
 
   def next_offset(db, table)
-    db[table.identifier].count
+    db[table].count
     
   end
 
